@@ -89,7 +89,7 @@ export default async function PostPage({ params }: PostPageProps) {
           {showSidebar && (
             <aside className="hidden w-64 flex-shrink-0 lg:block">
               <div className="sticky top-8 space-y-4">
-                {hasToc && (
+                {hasToc && post.toc && (
                   <div className="rounded-lg bg-card-background p-4 shadow-sm">
                     <TableOfContents items={post.toc} />
                   </div>
