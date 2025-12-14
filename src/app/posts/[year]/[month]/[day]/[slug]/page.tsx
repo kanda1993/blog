@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AiLogLink } from "@/components/AiLogLink";
 import { MermaidRenderer } from "@/components/MermaidRenderer";
+import { PostHeader } from "@/components/PostHeader";
 import { TableOfContents } from "@/components/TableOfContents";
-import { getAllPostPaths, getPostBySlug } from "@/lib/posts";
-import { getCategorySlug, getTagSlug } from "@/lib/slugs";
+import { getAllPostPaths, getPostBySlug, hasAiLog } from "@/lib/posts";
 
 interface PostPageProps {
   params: Promise<{
@@ -42,6 +43,11 @@ export default async function PostPage({ params }: PostPageProps) {
     notFound();
   }
 
+  const showAiLog = hasAiLog(year, month, day, slug);
+  const hasToc = post.toc && post.toc.length > 0;
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- boolean の論理和には || が適切
+  const showSidebar = hasToc || showAiLog;
+
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-6xl px-4 py-8">
@@ -54,59 +60,45 @@ export default async function PostPage({ params }: PostPageProps) {
         <div className="lg:flex lg:gap-6">
           {/* メインコンテンツ */}
           <article className="min-w-0 flex-1 rounded-lg bg-card-background p-6 shadow-sm lg:p-8">
-            <header className="mb-8">
-              <h1 className="mb-4 text-3xl font-bold text-text-primary">
-                {post.frontmatter.title}
-              </h1>
-              <div className="flex flex-wrap items-center gap-4 text-sm text-text-secondary">
-                <time dateTime={post.frontmatter.date}>
-                  {year}/{month}/{day}
-                </time>
-                <Link
-                  href={`/categories/${getCategorySlug(post.frontmatter.category)}`}
-                  className="rounded bg-content-background px-2 py-1 transition-colors hover:bg-blue-500 hover:text-white"
-                >
-                  {post.frontmatter.category}
-                </Link>
-              </div>
-              {post.frontmatter.tags.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {post.frontmatter.tags.map((tag) => (
-                    <Link
-                      key={tag}
-                      href={`/tags/${getTagSlug(tag)}`}
-                      className="rounded-full bg-blue-500/10 px-3 py-1 text-xs text-blue-400 transition-colors hover:bg-blue-500/20"
-                    >
-                      {tag}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </header>
-
-            {post.frontmatter.coverImage && (
-              <div className="mb-8">
-                {/* eslint-disable-next-line @next/next/no-img-element -- カバー画像は外部URLの可能性があるためimg要素を使用 */}
-                <img
-                  src={post.frontmatter.coverImage}
-                  alt={post.frontmatter.title}
-                  className="w-full rounded-lg"
-                />
-              </div>
-            )}
+            <PostHeader
+              title={post.frontmatter.title}
+              date={post.frontmatter.date}
+              year={year}
+              month={month}
+              day={day}
+              category={post.frontmatter.category}
+              tags={post.frontmatter.tags}
+              coverImage={post.frontmatter.coverImage}
+            />
 
             <div
               className="markdown-content"
               dangerouslySetInnerHTML={{ __html: post.htmlContent ?? "" }}
             />
             <MermaidRenderer />
+
+            {/* AI会話ログ - モバイル用（記事の下に表示） */}
+            {showAiLog && (
+              <div className="mt-8 rounded-lg bg-card-background p-4 shadow-sm lg:hidden">
+                <AiLogLink year={year} month={month} day={day} slug={slug} />
+              </div>
+            )}
           </article>
 
-          {/* サイドバー（目次） - PC のみ表示 */}
-          {post.toc && post.toc.length > 0 && (
+          {/* サイドバー（目次・AI会話ログ） - PC のみ表示 */}
+          {showSidebar && (
             <aside className="hidden w-64 flex-shrink-0 lg:block">
-              <div className="sticky top-8 rounded-lg bg-card-background p-4 shadow-sm">
-                <TableOfContents items={post.toc} />
+              <div className="sticky top-8 space-y-4">
+                {hasToc && (
+                  <div className="rounded-lg bg-card-background p-4 shadow-sm">
+                    <TableOfContents items={post.toc} />
+                  </div>
+                )}
+                {showAiLog && (
+                  <div className="rounded-lg bg-card-background p-4 shadow-sm">
+                    <AiLogLink year={year} month={month} day={day} slug={slug} />
+                  </div>
+                )}
               </div>
             </aside>
           )}

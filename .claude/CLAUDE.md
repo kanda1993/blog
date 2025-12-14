@@ -29,10 +29,10 @@ UI変更やページ表示の確認時は、**chrome-mcp を積極的に使用**
 
 ## 開発環境
 
-- パッケージ管理: bun（Docker内）/ npm（ローカル）
+- パッケージ管理: bun（Docker内）
 - 開発サーバー: `docker compose up -d`
-- Lint: `npm run lint` / `npm run lint:fix`
-- Format: `npm run format`
+- Lint: `bun run lint` / `bun run lint:fix`
+- Format: `bun run format`
 
 ## コーディング規約
 

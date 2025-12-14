@@ -6,6 +6,7 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import rehypeSlug from "rehype-slug";
 import rehypeStringify from "rehype-stringify";
+import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
@@ -88,6 +89,7 @@ function validateFrontmatter(data: unknown): PostFrontmatter {
 export function extractToc(markdown: string): TocItem[] {
   const headingRegex = /^(?<hashes>#{1,6})\s+(?<heading>.+)$/gm;
   const toc: TocItem[] = [];
+  const idCounts = new Map<string, number>();
 
   for (const match of markdown.matchAll(headingRegex)) {
     const { hashes, heading } = match.groups ?? {};
@@ -96,10 +98,15 @@ export function extractToc(markdown: string): TocItem[] {
     const { length: level } = hashes;
     const text = heading.trim();
     // rehype-slug と同じ方式で ID を生成
-    const id = text
+    const baseId = text
       .toLowerCase()
       .replace(/\s+/g, "-")
       .replace(/[^\p{L}\p{N}-]/gu, "");
+
+    // 重複IDに連番を付与（rehype-slugと同じ挙動）
+    const count = idCounts.get(baseId) ?? 0;
+    const id = count === 0 ? baseId : `${baseId}-${String(count)}`;
+    idCounts.set(baseId, count + 1);
 
     toc.push({ id, text, level });
   }
@@ -113,6 +120,7 @@ export function extractToc(markdown: string): TocItem[] {
 export async function markdownToHtml(markdown: string): Promise<string> {
   const result = await unified()
     .use(remarkParse)
+    .use(remarkGfm)
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(rehypeRaw)
     .use(rehypeSlug)
@@ -124,59 +132,72 @@ export async function markdownToHtml(markdown: string): Promise<string> {
 }
 
 /**
+ * 日付ディレクトリ内の記事を読み込む
+ */
+function loadPostsFromDayDirectory(
+  dayPath: string,
+  year: string,
+  month: string,
+  day: string
+): PostListItem[] {
+  const posts: PostListItem[] = [];
+  const entries = fs.readdirSync(dayPath);
+
+  for (const entry of entries) {
+    const entryPath = path.join(dayPath, entry);
+    if (!fs.statSync(entryPath).isDirectory()) continue;
+
+    const indexPath = path.join(entryPath, "index.md");
+    if (!fs.existsSync(indexPath)) continue;
+
+    const fileContents = fs.readFileSync(indexPath, "utf8");
+    const { data } = matter(fileContents);
+
+    posts.push({
+      slug: entry,
+      year,
+      month,
+      day,
+      frontmatter: validateFrontmatter(data),
+    });
+  }
+
+  return posts;
+}
+
+/**
  * 全記事を取得（日付降順）
  */
 export function getAllPosts(): PostListItem[] {
   const posts: PostListItem[] = [];
 
-  // content/posts ディレクトリが存在しない場合は空配列を返す
   if (!fs.existsSync(postsDirectory)) {
     return posts;
   }
 
-  // year ディレクトリを走査
   const years = fs.readdirSync(postsDirectory);
 
   for (const year of years) {
     const yearPath = path.join(postsDirectory, year);
     if (!fs.statSync(yearPath).isDirectory()) continue;
 
-    // month ディレクトリを走査
     const months = fs.readdirSync(yearPath);
 
     for (const month of months) {
       const monthPath = path.join(yearPath, month);
       if (!fs.statSync(monthPath).isDirectory()) continue;
 
-      // day ディレクトリを走査
       const days = fs.readdirSync(monthPath);
 
       for (const day of days) {
         const dayPath = path.join(monthPath, day);
         if (!fs.statSync(dayPath).isDirectory()) continue;
 
-        // Markdown ファイルを走査
-        const files = fs.readdirSync(dayPath).filter((file) => file.endsWith(".md"));
-
-        for (const file of files) {
-          const filePath = path.join(dayPath, file);
-          const fileContents = fs.readFileSync(filePath, "utf8");
-          const { data } = matter(fileContents);
-          const slug = file.replace(/\.md$/, "");
-
-          posts.push({
-            slug,
-            year,
-            month,
-            day,
-            frontmatter: validateFrontmatter(data),
-          });
-        }
+        posts.push(...loadPostsFromDayDirectory(dayPath, year, month, day));
       }
     }
   }
 
-  // 日付降順でソート
   return posts.sort((a, b) => {
     const dateA = `${a.year}${a.month}${a.day}${a.slug}`;
     const dateB = `${b.year}${b.month}${b.day}${b.slug}`;
@@ -193,7 +214,7 @@ export async function getPostBySlug(
   day: string,
   slug: string
 ): Promise<Post | null> {
-  const filePath = path.join(postsDirectory, year, month, day, `${slug}.md`);
+  const filePath = path.join(postsDirectory, year, month, day, slug, "index.md");
 
   if (!fs.existsSync(filePath)) {
     return null;
@@ -322,4 +343,34 @@ export function getAllTagPaths(): Array<{ tag: string }> {
 export function getAllCategoryPaths(): Array<{ category: string }> {
   const categories = getAllCategories();
   return categories.map(({ category }) => ({ category: getCategorySlug(category) }));
+}
+
+/**
+ * AI会話ログが存在するかチェック
+ */
+export function hasAiLog(year: string, month: string, day: string, slug: string): boolean {
+  const logPath = path.join(postsDirectory, year, month, day, slug, "log.md");
+  return fs.existsSync(logPath);
+}
+
+/**
+ * AI会話ログを取得
+ */
+export async function getAiLog(
+  year: string,
+  month: string,
+  day: string,
+  slug: string
+): Promise<{ htmlContent: string; toc: TocItem[] } | null> {
+  const logPath = path.join(postsDirectory, year, month, day, slug, "log.md");
+
+  if (!fs.existsSync(logPath)) {
+    return null;
+  }
+
+  const content = fs.readFileSync(logPath, "utf8");
+  const htmlContent = await markdownToHtml(content);
+  const toc = extractToc(content);
+
+  return { htmlContent, toc };
 }

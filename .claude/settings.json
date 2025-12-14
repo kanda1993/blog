@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p \"$CLAUDE_PROJECT_DIR/.ai_agent_logs/claude\" && jq -r '.transcript_path' | xargs -I {} cp {} \"$CLAUDE_PROJECT_DIR/.ai_agent_logs/claude/$(date +%Y%m%d_%H%M%S).jsonl\""
+          }
+        ]
+      }
+    ]
+  }
+}

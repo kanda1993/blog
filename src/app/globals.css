@@ -138,6 +138,24 @@ body {
   color: var(--text-primary);
 }
 
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.markdown-content th {
+  background-color: var(--content-background);
+  font-weight: bold;
+}
+
 /* Syntax highlighting (highlight.js GitHub Dark theme) */
 .hljs {
   color: #c9d1d9;
