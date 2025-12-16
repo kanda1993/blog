@@ -61,6 +61,20 @@ function extractTextContent(content: string | ContentBlock[]): string {
     .join("\n\n");
 }
 
+function formatUserMessage(text: string): string {
+  // 複数行のユーザー発言を引用ブロックにする
+  const formattedLines = text
+    .split("\n")
+    .map((line, index) => {
+      if (index === 0) {
+        return `> **User:** ${line}`;
+      }
+      return `> ${line}`;
+    })
+    .join("\n");
+  return formattedLines;
+}
+
 function convertToMarkdown(entries: LogEntry[]): string {
   const lines: string[] = [];
   lines.push("# AI会話ログ");
@@ -77,10 +91,13 @@ function convertToMarkdown(entries: LogEntry[]): string {
     // 空のメッセージはスキップ
     if (!text.trim()) continue;
 
-    const roleLabel = role === "user" ? "User" : "Assistant";
-    lines.push(`## ${roleLabel}`);
-    lines.push("");
-    lines.push(text);
+    if (role === "user") {
+      // Userの発言は引用ブロックで表示
+      lines.push(formatUserMessage(text));
+    } else {
+      // Assistantの発言は通常のテキストとして表示
+      lines.push(text);
+    }
     lines.push("");
     lines.push("---");
     lines.push("");
